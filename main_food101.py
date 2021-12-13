@@ -11,6 +11,7 @@ import time
 
 import os
 import argparse
+import numpy as np
 
 
 parser = argparse.ArgumentParser(description='PyTorch FOOD101 Training')
@@ -19,13 +20,52 @@ parser.add_argument('data', metavar='DIR',
 parser.add_argument('--lr', default=0.001, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
-parser.add_argument('-p', '--print-freq', default=100, type=int,
-                    metavar='N', help='print frequency (default: 100)')
 args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
+
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self, name, fmt=':f'):
+        self.name = name
+        self.fmt = fmt
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+    def __str__(self):
+        fmtstr = '{name} {val' + self.fmt + '} ({avg' + self.fmt + '})'
+        return fmtstr.format(**self.__dict__)
+
+
+class ProgressMeter(object):
+    def __init__(self, num_batches, meters, prefix=""):
+        self.batch_fmtstr = self._get_batch_fmtstr(num_batches)
+        self.meters = meters
+        self.prefix = prefix
+
+    def display(self, batch):
+        entries = [self.prefix + self.batch_fmtstr.format(batch)]
+        entries += [str(meter) for meter in self.meters]
+        print('\t'.join(entries))
+
+    def _get_batch_fmtstr(self, num_batches):
+        num_digits = len(str(num_batches // 1))
+        fmt = '{:' + str(num_digits) + 'd}'
+        return '[' + fmt + '/' + fmt.format(num_batches) + ']'
 
 # Data loading code
 print('==> Preparing data..')
@@ -84,6 +124,10 @@ optimizer = optim.SGD(net.parameters(), lr=args.lr,
                       momentum=0.9, weight_decay=5e-4)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
 
+train_loss = []
+train_accuracy = []
+val_loss = []
+val_accuracy = []
 
 # Training
 def train(epoch):
@@ -118,8 +162,11 @@ def train(epoch):
         batch_time.update(time.time() - end)
         end = time.time()
 
-        if batch_idx % args.print_freq == 0 or batch_idx == (len(trainloader)-1):
+        if batch_idx == (len(trainloader)-1):
             progress.display(batch_idx)
+
+    train_loss.append(losses.avg)
+    train_accuracy.append(top1.avg)
 
 
 def test(epoch):
@@ -149,8 +196,11 @@ def test(epoch):
             batch_time.update(time.time() - end)
             end = time.time()
 
-            if batch_idx % args.print_freq == 0 or batch_idx == (len(valloader) - 1):
+            if batch_idx == (len(valloader) - 1):
                 progress.display(batch_idx)
+
+    val_loss.append(losses.avg)
+    val_accuracy.append(top1.avg)
 
     # Save checkpoint.
     acc = top1.avg
@@ -172,43 +222,7 @@ for epoch in range(start_epoch, start_epoch+100):
     test(epoch)
     scheduler.step()
 
-
-class AverageMeter(object):
-    """Computes and stores the average and current value"""
-    def __init__(self, name, fmt=':f'):
-        self.name = name
-        self.fmt = fmt
-        self.reset()
-
-    def reset(self):
-        self.val = 0
-        self.avg = 0
-        self.sum = 0
-        self.count = 0
-
-    def update(self, val, n=1):
-        self.val = val
-        self.sum += val * n
-        self.count += n
-        self.avg = self.sum / self.count
-
-    def __str__(self):
-        fmtstr = '{name} {val' + self.fmt + '} ({avg' + self.fmt + '})'
-        return fmtstr.format(**self.__dict__)
-
-
-class ProgressMeter(object):
-    def __init__(self, num_batches, meters, prefix=""):
-        self.batch_fmtstr = self._get_batch_fmtstr(num_batches)
-        self.meters = meters
-        self.prefix = prefix
-
-    def display(self, batch):
-        entries = [self.prefix + self.batch_fmtstr.format(batch)]
-        entries += [str(meter) for meter in self.meters]
-        print('\t'.join(entries))
-
-    def _get_batch_fmtstr(self, num_batches):
-        num_digits = len(str(num_batches // 1))
-        fmt = '{:' + str(num_digits) + 'd}'
-        return '[' + fmt + '/' + fmt.format(num_batches) + ']'
+np.save('train_loss', np.array(train_loss))
+np.save('train_accuracy', np.array(train_accuracy))
+np.save('val_loss', np.array(val_loss))
+np.save('val_accuracy', np.array(val_accuracy))

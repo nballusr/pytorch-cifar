@@ -12,7 +12,7 @@ import argparse
 import time
 
 from models import *
-from utils import progress_bar
+import numpy as np
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
@@ -24,6 +24,7 @@ args = parser.parse_args()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
+
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -129,6 +130,10 @@ optimizer = optim.SGD(net.parameters(), lr=args.lr,
                       momentum=0.9, weight_decay=5e-4)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 
+train_loss = []
+train_accuracy = []
+test_loss = []
+test_accuracy = []
 
 # Training
 def train(epoch):
@@ -164,6 +169,9 @@ def train(epoch):
         if batch_idx == (len(trainloader) - 1):
             progress.display(batch_idx)
 
+    train_loss.append(losses.avg)
+    train_accuracy.append(top1.avg)
+
 
 def test(epoch):
     global best_acc
@@ -193,6 +201,9 @@ def test(epoch):
             if batch_idx == (len(testloader) - 1):
                 progress.display(batch_idx)
 
+    test_loss.append(losses.avg)
+    test_accuracy.append(top1.avg)
+
     # Save checkpoint.
     acc = top1.avg
     if acc > best_acc:
@@ -212,3 +223,8 @@ for epoch in range(start_epoch, start_epoch+200):
     train(epoch)
     test(epoch)
     scheduler.step()
+
+np.save('train_loss', np.array(train_loss))
+np.save('train_accuracy', np.array(train_accuracy))
+np.save('val_loss', np.array(test_loss))
+np.save('val_accuracy', np.array(test_accuracy))
