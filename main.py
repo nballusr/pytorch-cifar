@@ -19,6 +19,7 @@ parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
+parser.add_argument('--pretrained', default='', type=str, help='path to pretrained checkpoint')
 args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -96,21 +97,31 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 
 # Model
 print('==> Building model..')
-# net = VGG('VGG19')
 net = ResNet18()
-# net = PreActResNet18()
-# net = GoogLeNet()
-# net = DenseNet121()
-# net = ResNeXt29_2x64d()
-# net = MobileNet()
-# net = MobileNetV2()
-# net = DPN92()
-# net = ShuffleNetG2()
-# net = SENet18()
-# net = ShuffleNetV2(1)
-# net = EfficientNetB0()
-# net = RegNetX_200MF()
-# net = SimpleDLA()
+
+if args.pretrained:
+    if os.path.isfile(args.pretrained):
+        print("=> loading checkpoint '{}'".format(args.pretrained))
+        checkpoint = torch.load(args.pretrained, map_location="cpu")
+        state_dict = checkpoint['state_dict']
+
+        new_state_dict = dict()
+        for old_key, value in state_dict.items():
+            if old_key.startswith('backbone') and 'fc' not in old_key:
+                new_key = old_key.replace('backbone.', '')
+                new_state_dict[new_key] = value
+
+        args.start_epoch = 0
+        msg = net.load_state_dict(new_state_dict, strict=False)
+        assert set(msg.missing_keys) == {"linear.weight", "linear.bias"}
+
+        print("=> loaded pre-trained model '{}'".format(args.pretrained))
+    else:
+        print("=> no checkpoint found at '{}'".format(args.pretrained))
+        exit(1)
+else:
+    print("=> use default network (no checkpoint)")
+
 net = net.to(device)
 if device == 'cuda':
     net = torch.nn.DataParallel(net)
